@@ -50,11 +50,13 @@ static int g_attention = 0;
 char const*const RED_LED_FILE
         = "/sys/class/leds/red/brightness";
 
+#ifndef WHITE_ONLY
 char const*const GREEN_LED_FILE
         = "/sys/class/leds/green/brightness";
 
 char const*const BLUE_LED_FILE
         = "/sys/class/leds/blue/brightness";
+#endif
 
 char const*const LCD_FILE
         = "/sys/class/leds/lcd-backlight/brightness";
@@ -68,11 +70,13 @@ char const*const BUTTON_FILE
 char const*const RED_BLINK_FILE
         = "/sys/class/leds/red/blink";
 
+#ifndef WHITE_ONLY
 char const*const GREEN_BLINK_FILE
         = "/sys/class/leds/green/blink";
 
 char const*const BLUE_BLINK_FILE
         = "/sys/class/leds/blue/blink";
+#endif
 
 char const*const PERSISTENCE_FILE
         = "/sys/class/graphics/fb0/msm_fb_persist_mode";
@@ -167,6 +171,9 @@ static int
 set_speaker_light_locked(struct light_device_t* dev,
         struct light_state_t const* state)
 {
+#ifdef WHITE_ONLY
+    int brightness, alpha;
+#endif
     int red, green, blue;
     int blink;
     int onMS, offMS;
@@ -195,9 +202,26 @@ set_speaker_light_locked(struct light_device_t* dev,
             state->flashMode, colorRGB, onMS, offMS);
 #endif
 
+#ifdef WHITE_ONLY
+    /*
+     * Extract brightness from AARRGGBB.
+     */
+    alpha = (colorRGB >> 24) & 0xFF;
+#endif
     red = (colorRGB >> 16) & 0xFF;
     green = (colorRGB >> 8) & 0xFF;
     blue = colorRGB & 0xFF;
+
+#ifdef WHITE_ONLY
+    /*
+     * Scale RGB brightness using Alpha brightness.
+     */
+    red *= alpha / 0xFF;
+    green *= alpha / 0xFF;
+    blue *= alpha / 0xFF;
+
+    brightness = (77 * red + 150 * green + 29 * blue) >> 8;
+#endif
 
     if (onMS > 0 && offMS > 0) {
         /*
@@ -215,9 +239,12 @@ set_speaker_light_locked(struct light_device_t* dev,
     }
 
     if (blink) {
+#ifndef WHITE_ONLY
         if (red) {
+#endif
             if (write_int(RED_BLINK_FILE, blink))
                 write_int(RED_LED_FILE, 0);
+#ifndef WHITE_ONLY
         }
         if (green) {
             if (write_int(GREEN_BLINK_FILE, blink))
@@ -227,10 +254,13 @@ set_speaker_light_locked(struct light_device_t* dev,
             if (write_int(BLUE_BLINK_FILE, blink))
                 write_int(BLUE_LED_FILE, 0);
         }
+#endif
     } else {
         write_int(RED_LED_FILE, red);
+#ifndef WHITE_ONLY
         write_int(GREEN_LED_FILE, green);
         write_int(BLUE_LED_FILE, blue);
+#endif
     }
 
     return 0;
